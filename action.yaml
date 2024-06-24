@@ -1,0 +1,237 @@
+name: 'Runtimes Tasks Integrated Action'
+description: 'Unified Action for running Runtimes all deployment Tasks within a single runner'
+
+inputs:
+  TASK_LIST:
+    description: List of tasks
+    type: string
+    required: true
+  FEATURES_LEVEL_LOG:
+    description: "Log Level"
+    type: string
+    required: true
+  REPOSITORY_NAME:
+    description: "Git Repository Name"
+    type: string
+    required: true
+  AWS_REGION:
+    description: "AWS REGION"
+    type: string
+    required: true
+  CONTAINER_URL_IAC:
+    description: "IAC Container url"
+    type: string
+    default: stackspot/runtime-job-iac:latest
+    required: false
+  CONTAINER_URL_DEPLOY:
+    description: "Deploy Container url"
+    type: string
+    default: stackspot/runtime-job-deploy:latest
+    required: false
+  CONTAINER_URL_DESTROY:
+    description: "Destroy Container url"
+    type: string
+    default: stackspot/runtime-job-destroy:latest
+    required: false
+  FEATURES_TERRAFORM_MODULES:
+    type: string
+    description: "Terraform Modules"
+    required: false
+  PATH_TO_MOUNT:
+    type: string
+    description: "Path to mount inside the docker"
+    required: true
+  OUTPUT_FILE:
+    description: "File name to save outputs: {plugin-alias}_{OUTPUT_FILE}"
+    type: string
+    required: false
+    default: outputs.json
+  LOCALEXEC_ENABLED:
+    description: "If Runtimes will allow execution of the local-exec command within terraform"
+    type: boolean
+    required: false
+    default: false
+  TF_LOG_PROVIDER:
+    description: "Level tf log provider - info, debug, warn or trace"
+    type: string
+    required: false
+  CHECKOUT_BRANCH:
+    description: "Whether or not checkout is enabled."
+    type: string
+    required: false
+    default: "false"
+  BASE_PATH_OUTPUT:
+    description: "Base Path Output"
+    type: string
+    required: false
+  CLIENT_ID:
+    description: "CLIENT ID"
+    required: true
+  CLIENT_KEY:
+    description: "CLIENT KEY"
+    required: true
+  CLIENT_REALM:
+    description: "CLIENT REALM"
+    required: true
+  AWS_ACCESS_KEY_ID:
+    description: "AWS ACCESS KEY ID from console"
+    required: false
+  AWS_SECRET_ACCESS_KEY:
+    description: "AWS SECRET ACCESS KEY from console"
+    required: false
+  AWS_SESSION_TOKEN:
+    description: "AWS SESSION TOKEN from console"
+    required: false
+  AWS_ROLE_ARN:
+    description: "AWS ROLE ARN"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check Runner
+      run: echo 🤖 OS runner is $(uname)
+      shell: bash
+
+    - name: Configure aws credentials
+      env:
+        role_arn: ${{ inputs.AWS_ROLE_ARN }}
+      id: aws-cred
+      if: ${{ env.role_arn != 0 }}
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.AWS_ROLE_ARN }}
+        aws-region: ${{ inputs.AWS_REGION }}
+        output-credentials: true
+
+    - name: Checkout
+      if: inputs.CHECKOUT_BRANCH != 'false'
+      uses: actions/checkout@v4
+
+    - name: "Setup jq"
+      run: |
+        sudo apt install -y jq
+        which jq
+        jq --version
+
+    - name: "Run all tasks"
+      shell: bash
+      run: |
+        task_list=$(echo "${{ inputs.TASK_LIST }}" | tr "'" '"')
+        echo "$task_list"
+
+        for row in $(echo "$task_list" | jq -e -r '.[] | @base64'); do
+          task_id=$(echo "${row}" | base64 --decode | jq -e -r '.runTaskId')
+          task_type=$(echo "${row}" | base64 --decode | jq -e -r '.taskType')
+          plugin_alias=$(echo "${row}" | base64 --decode | jq -e -r '.pluginAppliedAlias')
+
+          if [[ "$task_type" == "IAC_SELF_HOSTED" && "${{ inputs.AWS_ROLE_ARN }}" == "" ]]; then
+            docker run --rm \
+            -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
+            -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
+            -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
+            -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
+            -e AUTHENTICATE_URL=https://idm.stackspot.com \
+            -e FEATURES_API_MANAGER=https://runtime-manager.v1.stackspot.com \
+            -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }} \
+            -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }} \
+            -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }} \
+            -e AWS_REGION=${{ inputs.AWS_REGION }} \
+            --entrypoint=/app/stackspot-runtime-job-iac \
+            ${{ inputs.CONTAINER_URL_IAC }} start --run-task-id="$task_id" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
+          fi
+
+          if [[ "$task_type" == "IAC_SELF_HOSTED" && "${{ inputs.AWS_ROLE_ARN }}" != "" ]]; then
+            docker run --rm \
+            -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
+            -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
+            -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
+            -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
+            -e AUTHENTICATE_URL=https://idm.stackspot.com \
+            -e FEATURES_API_MANAGER=https://runtime-manager.v1.stackspot.com \
+            -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }} \
+            -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }} \
+            -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }} \
+            -e AWS_REGION=${{ inputs.AWS_REGION }} \
+            --entrypoint=/app/stackspot-runtime-job-iac \
+            ${{ inputs.CONTAINER_URL_IAC }} start --run-task-id="${task_id}" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
+          fi
+
+          if [ "$task_type" == "DEPLOY_SELF_HOSTED" ]; then
+            FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
+            -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
+            -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
+            -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
+            -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
+            -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
+            -e AUTHENTICATE_URL=https://idm.stackspot.com \
+            -e FEATURES_API_MANAGER=https://runtime-manager.v1.stackspot.com \
+            -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
+            -e FEATURES_BASEPATH_EBS=/opt/runtime \
+            -e FEATURES_TEMPLATES_FILEPATH=/app/ \
+            -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
+            -e AWS_REGION=${{ inputs.AWS_REGION }} \
+            -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
+
+            if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
+              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}")
+              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }}")
+            fi
+
+            if [ ! -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }}")
+              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }}")
+              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }}")
+            fi
+
+            if [ ! -z "${{ inputs.TF_LOG_PROVIDER }}" ]; then
+              FLAGS=$(echo "$FLAGS -e FEATURES_TERRAFORM_LOGPROVIDER=${{ inputs.TF_LOG_PROVIDER }}")
+            fi
+
+            docker run --rm \
+            $FLAGS \
+            -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' \
+            --entrypoint=/app/stackspot-runtime-job-deploy \
+            ${{ inputs.CONTAINER_URL_DEPLOY }} start --run-task-id="${task_id}" --output-file="${plugin_alias}${{ inputs.OUTPUT_FILE }}"
+          fi
+
+          if [ "$task_type" == "DESTROY_SELF_HOSTED" ]; then
+            FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
+            -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
+            -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
+            -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
+            -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
+            -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
+            -e AUTHENTICATE_URL=https://idm.stackspot.com \
+            -e FEATURES_API_MANAGER=https://runtime-manager.v1.stackspot.com \
+            -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
+            -e FEATURES_BASEPATH_EBS=/opt/runtime \
+            -e FEATURES_TEMPLATES_FILEPATH=/app/ \
+            -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
+            -e AWS_REGION=${{ inputs.AWS_REGION }} \
+            -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
+
+            if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
+              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}")
+              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }}")
+            fi
+
+            if [ ! -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }}")
+              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }}")
+              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }}")
+            fi
+
+            if [ ! -z "${{ inputs.TF_LOG_PROVIDER }}" ]; then
+              FLAGS=$(echo "$FLAGS -e FEATURES_TERRAFORM_LOGPROVIDER=${{ inputs.TF_LOG_PROVIDER }}")
+            fi
+
+            docker run --rm \
+            $FLAGS \
+            -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' \
+            --entrypoint=/app/stackspot-runtime-job-destroy \
+            ${{ inputs.CONTAINER_URL_DESTROY }} start --run-task-id="${task_id}"
+          fi
+        done
