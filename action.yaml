@@ -109,6 +109,7 @@ runs:
       uses: actions/checkout@v4
 
     - name: "Setup jq"
+      shell: bash
       run: |
         sudo apt install -y jq
         which jq
