@@ -108,13 +108,6 @@ runs:
       if: inputs.CHECKOUT_BRANCH != 'false'
       uses: actions/checkout@v4
 
-    - name: "Setup jq"
-      shell: bash
-      run: |
-        sudo apt install -y jq
-        which jq
-        jq --version
-
     - name: "Run all tasks"
       shell: bash
       run: |
