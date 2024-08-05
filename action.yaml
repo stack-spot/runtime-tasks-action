@@ -135,7 +135,7 @@ runs:
             -e AUTHENTICATE_URL="https://account-keycloak.stg.stackspot.com" \
             -e FEATURES_API_MANAGER="https://runtime-manager.stg.stackspot.com" \
             -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
-            -e AWS_REGION=${{ inputs.AWS_REGION }} \
+            -e AWS_REGION=${{ inputs.AWS_REGION }}")
 
             if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
               FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
