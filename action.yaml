@@ -126,7 +126,7 @@ runs:
           task_type=$(echo "${row}" | base64 --decode | jq -e -r '.taskType')
           plugin_alias=$(echo "${row}" | base64 --decode | jq -e -r '.pluginAppliedAlias')
 
-          if [[ "$task_type" == "IAC_SELF_HOSTED" ]; then
+          if [ "$task_type" == "IAC_SELF_HOSTED" ]; then
             FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
             -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
             -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
