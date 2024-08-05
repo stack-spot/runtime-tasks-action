@@ -111,9 +111,9 @@ runs:
     - name: "Setup jq"
       shell: bash
       run: |
-        sudo apt install -y jq
-        which jq
-        jq --version
+        if ! [ -x "$(command -v jq)" ]; then
+          sudo apt install jq -y
+        fi
 
     - name: "Run all tasks"
       shell: bash
