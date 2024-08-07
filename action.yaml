@@ -59,7 +59,7 @@ inputs:
     description: "Whether or not checkout is enabled."
     type: string
     required: false
-    default: "false"
+    default: "main"
   BASE_PATH_OUTPUT:
     description: "Base Path Output"
     type: string
