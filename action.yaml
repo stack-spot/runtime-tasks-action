@@ -131,9 +131,9 @@ runs:
             -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
             -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
             -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
-          -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
-            -e AUTHENTICATE_URL="https://account-keycloak.stg.stackspot.com" \
-            -e FEATURES_API_MANAGER="https://runtime-manager.stg.stackspot.com" \
+            -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
+            -e AUTHENTICATE_URL="https://account-keycloak.dev.stackspot.com" \
+            -e FEATURES_API_MANAGER="https://runtime-manager.dev.stackspot.com" \
             -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }} \
             -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }} \
             -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }} \
@@ -148,8 +148,8 @@ runs:
             -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
             -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
             -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
-            -e AUTHENTICATE_URL="https://account-keycloak.stg.stackspot.com" \
-            -e FEATURES_API_MANAGER="https://runtime-manager.stg.stackspot.com" \
+            -e AUTHENTICATE_URL="https://account-keycloak.dev.stackspot.com" \
+            -e FEATURES_API_MANAGER="https://runtime-manager.dev.stackspot.com" \
             -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }} \
             -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }} \
             -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }} \
@@ -165,8 +165,8 @@ runs:
             -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
             -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
             -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
-            -e AUTHENTICATE_URL="https://account-keycloak.stg.stackspot.com" \
-            -e FEATURES_API_MANAGER="https://runtime-manager.stg.stackspot.com" \
+            -e AUTHENTICATE_URL="https://account-keycloak.dev.stackspot.com" \
+            -e FEATURES_API_MANAGER="https://runtime-manager.dev.stackspot.com" \
             -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
             -e FEATURES_BASEPATH_EBS=/opt/runtime \
             -e FEATURES_TEMPLATES_FILEPATH=/app/ \
@@ -204,8 +204,8 @@ runs:
             -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
             -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
             -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
-            -e AUTHENTICATE_URL="https://account-keycloak.stg.stackspot.com" \
-            -e FEATURES_API_MANAGER="https://runtime-manager.stg.stackspot.com" \
+            -e AUTHENTICATE_URL="https://account-keycloak.dev.stackspot.com" \
+            -e FEATURES_API_MANAGER="https://runtime-manager.dev.stackspot.com" \
             -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
             -e FEATURES_BASEPATH_EBS=/opt/runtime \
             -e FEATURES_TEMPLATES_FILEPATH=/app/ \
