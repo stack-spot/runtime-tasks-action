@@ -36,7 +36,7 @@ inputs:
   CONTAINER_URL_UNIFIED:
     description: "Unified Tasks Container url"
     type: string
-    default: stackspot/runtime-worker-unified:latest
+    default: stackspot/runtime-job-unified:latest
     required: false
   FEATURES_TERRAFORM_MODULES:
     type: string
