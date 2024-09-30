@@ -64,7 +64,7 @@ inputs:
     description: "Whether or not checkout is enabled."
     type: string
     required: false
-    default: "false"
+    default: "true"
   BASE_PATH_OUTPUT:
     description: "Base Path Output"
     type: string
@@ -139,13 +139,14 @@ runs:
             -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
             -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
             -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
-          -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
+            -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
             -e AUTHENTICATE_URL="https://account-keycloak.stg.stackspot.com" \
             -e FEATURES_API_MANAGER="https://runtime-manager.stg.stackspot.com" \
             -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }} \
             -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }} \
             -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }} \
             -e AWS_REGION=${{ inputs.AWS_REGION }} \
+            -e CHECKOUT_BRANCH=${{ inputs.CHECKOUT_BRANCH }} \
             --entrypoint=/app/stackspot-runtime-job-iac \
             ${{ inputs.CONTAINER_URL_IAC }} start --run-task-id="$task_id" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
           fi
