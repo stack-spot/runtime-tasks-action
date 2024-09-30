@@ -163,6 +163,7 @@ runs:
             -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }} \
             -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }} \
             -e AWS_REGION=${{ inputs.AWS_REGION }} \
+            -e CHECKOUT_BRANCH=${{ inputs.CHECKOUT_BRANCH }} \
             --entrypoint=/app/stackspot-runtime-job-iac \
             ${{ inputs.CONTAINER_URL_IAC }} start --run-task-id="${task_id}" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
           fi
