@@ -135,6 +135,7 @@ runs:
             -e AUTHENTICATE_URL="https://idm.stackspot.com" \
             -e FEATURES_API_MANAGER="https://runtime-manager.v1.stackspot.com" \
             -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
+            -e CHECKOUT_BRANCH=${{ inputs.CHECKOUT_BRANCH }} \
             -e AWS_REGION=${{ inputs.AWS_REGION }}")
 
             if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
