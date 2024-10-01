@@ -133,7 +133,9 @@ runs:
           task_id=$(echo "${row}" | base64 --decode | jq -e -r '.runTaskId')
           task_type=$(echo "${row}" | base64 --decode | jq -e -r '.taskType')
           plugin_alias=$(echo "${row}" | base64 --decode | jq -e -r '.pluginAppliedAlias')
-
+          echo "$task_id"
+          echo "$task_type"
+          echo "$plugin_alias"
           if [ "$task_type" == "IAC_SELF_HOSTED" ]; then
             FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
             -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
