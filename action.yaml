@@ -275,7 +275,7 @@ runs:
               FLAGS=$(echo "$FLAGS -e FEATURES_TERRAFORM_LOGPROVIDER=${{ inputs.TF_LOG_PROVIDER }}")
             fi
 
-            echo "docker run --rm $FLAGS -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' --entrypoint=/app/runtime-worker-unified ${{ inputs.CONTAINER_URL_UNIFIED }} start --run-id="${{ inputs.RUN_ID }}" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
+            echo "docker run --rm $FLAGS -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' --entrypoint=/app/runtime-worker-unified ${{ inputs.CONTAINER_URL_UNIFIED }} start --run-id='${{ inputs.RUN_ID }}' --base-path-output='${{ inputs.BASE_PATH_OUTPUT }}'"
 
             docker run --rm \
             $FLAGS \
