@@ -131,10 +131,10 @@ runs:
 
         for row in $(echo "$task_list" | jq -e -r '.[] | @base64'); do
           task_id=$(echo "${row}" | base64 --decode | jq -e -r '.runTaskId')
-          task_type=$(echo "${row}" | base64 --decode | jq -e -r '.taskType')
-          plugin_alias=$(echo "${row}" | base64 --decode | jq -e -r '.pluginAppliedAlias')
           echo "$task_id"
+          task_type=$(echo "${row}" | base64 --decode | jq -e -r '.taskType')
           echo "$task_type"
+          plugin_alias=$(echo "${row}" | base64 --decode | jq -e -r '.pluginAppliedAlias')
           echo "$plugin_alias"
           if [ "$task_type" == "IAC_SELF_HOSTED" ]; then
             FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
