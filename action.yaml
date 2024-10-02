@@ -258,6 +258,7 @@ runs:
             -e FEATURES_TEMPLATES_FILEPATH=/app/ \
             -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
             -e AWS_REGION=${{ inputs.AWS_REGION }} \
+            -e CHECKOUT_BRANCH="${{ inputs.CHECKOUT_BRANCH }}" \
             -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
 
             if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
