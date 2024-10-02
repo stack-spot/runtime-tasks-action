@@ -279,7 +279,7 @@ runs:
             docker run --rm \
             $FLAGS \
             -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' \
-            --entrypoint=/app/runtime-worker-unified \
+            --entrypoint=/app/stackspot-runtime-job \
             ${{ inputs.CONTAINER_URL_UNIFIED }} start --run-id="${{ inputs.RUN_ID }}" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
           fi
         done
