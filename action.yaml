@@ -38,6 +38,11 @@ inputs:
     type: string
     default: stackspot/runtime-job-unified:latest
     required: false
+ TF_PARALLELISM:
+    description: "Terraform parallelism ordem"
+    type: string
+    default: 10
+    required: false
   FEATURES_TERRAFORM_MODULES:
     type: string
     description: "Terraform Modules"
@@ -259,6 +264,9 @@ runs:
             -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
             -e AWS_REGION=${{ inputs.AWS_REGION }} \
             -e CHECKOUT_BRANCH="${{ inputs.CHECKOUT_BRANCH }}" \
+            -e TF_CLI_ARGS_apply="-parallelism=${{ inputs.TF_PARALLELISM }}" \
+            -e TF_CLI_ARGS_plan="-parallelism=${{ inputs.TF_PARALLELISM }}" \
+            -e TF_CLI_ARGS_destroy="-parallelism=${{ inputs.TF_PARALLELISM }}" \
             -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
 
             if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
