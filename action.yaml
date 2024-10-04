@@ -38,7 +38,7 @@ inputs:
     type: string
     default: stackspot/runtime-job-unified:latest
     required: false
- TF_PARALLELISM:
+  TF_PARALLELISM:
     description: "Terraform parallelism ordem"
     type: string
     default: 10
