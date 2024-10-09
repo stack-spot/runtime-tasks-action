@@ -98,6 +98,12 @@ inputs:
   RUN_ID:
     description: "Run ID that contains its tasks"
     required: true
+  BETA_CLI_ENVIRONMENT:
+    description: Environment in which cli will be executed. (default, stg, dev).
+    required: false
+    type: string
+    default: default
+
 
 runs:
   using: "composite"
@@ -128,6 +134,30 @@ runs:
         which jq
         jq --version
 
+    - name: Define Domains
+      id: stackspot-url
+      run: |
+        if [ "${{ inputs.BETA_CLI_ENVIRONMENT }}" == "default" ]; then
+          STACKSPOT_IAM_URL="https://auth.stackspot.com"
+          STACKSPOT_RUNTIME_MANAGER_URL="https://runtime-manager.v1.stackspot.com"
+        
+        elif [ "${{ inputs.BETA_CLI_ENVIRONMENT }}" == "stg" ]; then
+          STACKSPOT_IAM_URL="${{ steps.stackspot-url.outputs.iam }}"
+          STACKSPOT_RUNTIME_MANAGER_URL="${{ steps.stackspot-url.outputs.runtime_manager }}"
+        
+        elif [ "${{ inputs.BETA_CLI_ENVIRONMENT }}" == "dev" ]; then
+          STACKSPOT_IAM_URL="https://iam-auth-ssr.dev.stackspot.com"
+          STACKSPOT_RUNTIME_MANAGER_URL="https://runtime-manager.dev.stackspot.com"
+        
+        else
+          echo "Invalid environment: ${{ inputs.BETA_CLI_ENVIRONMENT }}"
+          exit 1
+        fi
+
+        echo "iam=$STACKSPOT_IAM_URL" >> "$GITHUB_OUTPUT"
+        echo "runtime_manager=$STACKSPOT_RUNTIME_MANAGER_URL" >> "$GITHUB_OUTPUT"
+      shell: bash
+
     - name: "Run all tasks"
       shell: bash
       run: |
@@ -145,8 +175,8 @@ runs:
             -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
             -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
             -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
-            -e AUTHENTICATE_URL="https://iam-auth-ssr.stg.stackspot.com" \
-            -e FEATURES_API_MANAGER="https://runtime-manager.stg.stackspot.com" \
+            -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
+            -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
             -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
             -e CHECKOUT_BRANCH="${{ inputs.CHECKOUT_BRANCH }}" \
             -e AWS_REGION=${{ inputs.AWS_REGION }}")
@@ -176,8 +206,8 @@ runs:
             -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
             -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
             -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
-            -e AUTHENTICATE_URL="https://iam-auth-ssr.stg.stackspot.com" \
-            -e FEATURES_API_MANAGER="https://runtime-manager.stg.stackspot.com" \
+            -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
+            -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
             -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
             -e FEATURES_BASEPATH_EBS=/opt/runtime \
             -e FEATURES_TEMPLATES_FILEPATH=/app/ \
@@ -215,8 +245,8 @@ runs:
             -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
             -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
             -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
-            -e AUTHENTICATE_URL="https://iam-auth-ssr.stg.stackspot.com" \
-            -e FEATURES_API_MANAGER="https://runtime-manager.stg.stackspot.com" \
+            -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
+            -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
             -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
             -e FEATURES_BASEPATH_EBS=/opt/runtime \
             -e FEATURES_TEMPLATES_FILEPATH=/app/ \
@@ -256,8 +286,8 @@ runs:
             -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
             -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
             -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
-            -e AUTHENTICATE_URL="https://iam-auth-ssr.stg.stackspot.com" \
-            -e FEATURES_API_MANAGER="https://runtime-manager.stg.stackspot.com" \
+            -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
+            -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
             -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
             -e FEATURES_BASEPATH_EBS=/opt/runtime \
             -e FEATURES_TEMPLATES_FILEPATH=/app/ \
