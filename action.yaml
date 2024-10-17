@@ -38,6 +38,11 @@ inputs:
     type: string
     default: stackspot/runtime-job-unified:latest
     required: false
+  TF_PARALLELISM:
+    description: "Terraform parallelism ordem"
+    type: string
+    default: 10
+    required: false
   FEATURES_TERRAFORM_MODULES:
     type: string
     description: "Terraform Modules"
@@ -255,6 +260,9 @@ runs:
             -e FEATURES_TEMPLATES_FILEPATH=/app/ \
             -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
             -e AWS_REGION=${{ inputs.AWS_REGION }} \
+            -e TF_CLI_ARGS_apply="-parallelism=${{ inputs.TF_PARALLELISM }}" \
+            -e TF_CLI_ARGS_plan="-parallelism=${{ inputs.TF_PARALLELISM }}" \
+            -e TF_CLI_ARGS_destroy="-parallelism=${{ inputs.TF_PARALLELISM }}" \
             -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
 
             if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
@@ -276,7 +284,7 @@ runs:
             docker run --rm \
             $FLAGS \
             -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' \
-            --entrypoint=/app/runtime-worker-unified \
+            --entrypoint=/app/stackspot-runtime-job \
             ${{ inputs.CONTAINER_URL_UNIFIED }} start --run-id="${{ inputs.RUN_ID }}" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
           fi
         done
