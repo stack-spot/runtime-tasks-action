@@ -60,7 +60,7 @@ inputs:
     description: "If Runtimes will allow execution of the local-exec command within terraform"
     type: boolean
     required: false
-    default: 'false'
+    default: "false"
   TF_LOG_PROVIDER:
     description: "Level tf log provider - info, debug, warn or trace"
     type: string
