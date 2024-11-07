@@ -276,7 +276,7 @@ runs:
             ${{ inputs.CONTAINER_URL_DESTROY }} start --run-task-id="${task_id}"
           fi
 
-          if [ "$task_type" == "UNIFIED_IAC" ] || [ "$task_type" == "UNIFIED_DEPLOY" ] || [ "$task_type" == "UNIFIED_DESTROY" ]; then
+          if [ "$task_type" == "UNIFIED_IAC" ] || [ "$task_type" == "PLAN" ] || [ "$task_type" == "UNIFIED_DEPLOY" ] || [ "$task_type" == "UNIFIED_DESTROY" ]; then
             FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
             -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
             -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
