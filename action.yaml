@@ -111,20 +111,6 @@ runs:
       run: echo 🤖 OS runner is $(uname)
       shell: bash
 
-    - name: Validate Tasks
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const taskList = core.getInput('TASK_LIST') || "";
-
-          if (!taskList || taskList.trim() === "") {
-            core.setFailed(
-              "❌ Error: TASK_LIST should not be empty.\n" +
-              "❌ Error: Validate if TASK_LIST was exported correctly.\n" +
-              "❌ Error: TASK_LIST could contain a Github Secret, and was not outputted by Github."
-            );
-          }
-
     - name: Configure aws credentials
       env:
         role_arn: ${{ inputs.AWS_ROLE_ARN }}
