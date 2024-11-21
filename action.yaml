@@ -111,6 +111,16 @@ runs:
       run: echo 🤖 OS runner is $(uname)
       shell: bash
 
+    - name: Validate Tasks
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.TASK_LIST }}" ]; then
+          echo "Error: TASK_LIST should not be empty."
+          echo "Error: Validate if TASK_LIST was exported correctly."
+          echo "Error: "TASK_LIST could contain a Github Secret, and was not outputed by Github"
+          exit 1
+        fi
+
     - name: Configure aws credentials
       env:
         role_arn: ${{ inputs.AWS_ROLE_ARN }}
