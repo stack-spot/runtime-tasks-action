@@ -114,7 +114,7 @@ runs:
     - name: Validate Tasks
       shell: bash
       run: |
-        if [ -z "${{ inputs.TASK_LIST }}" ]; then
+        if [ "${{ inputs.TASK_LIST }}" == "" ]; then
           echo "Error: TASK_LIST should not be empty."
           echo "Error: Validate if TASK_LIST was exported correctly."
           echo "Error: "TASK_LIST could contain a Github Secret, and was not outputed by Github"
