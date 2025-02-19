@@ -98,6 +98,10 @@ inputs:
   RUN_ID:
     description: "Run ID that contains its tasks"
     required: true
+  EXCLUDE_FILES_PATH:
+    description: "Enter Path that should be deleted with 'rm -rf ${{ inputs.PATH_TO_MOUNT }}/${{ inputs.EXCLUDE_FILES_PATH }}'"
+    required: false
+    default: ''
   BETA_CLI_ENVIRONMENT:
     description: Environment in which cli will be executed. (default, stg, dev).
     required: false
@@ -130,6 +134,12 @@ runs:
   - name: Checkout
     if: inputs.CHECKOUT_BRANCH != 'false'
     uses: actions/checkout@v4
+
+  - name: Remove file path
+    if: inputs.EXCLUDE_FILES_PATH != ''
+    shell: bash
+    run: |
+      rm -rf ${{ inputs.PATH_TO_MOUNT }}/${{ inputs.EXCLUDE_FILES_PATH }}
 
   - name: "Setup jq"
     shell: bash
