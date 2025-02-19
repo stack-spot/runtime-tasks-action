@@ -107,231 +107,220 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Check Runner
-      run: echo 🤖 OS runner is $(uname)
-      shell: bash
+  - name: Check Runner
+    run: echo 🤖 OS runner is $(uname)
+    shell: bash
 
-    - name: Validate Tasks
-      uses: actions/github-script@v7
-      env:
-        TASK_LIST: ${{ inputs.TASK_LIST }}
-      with:
-        script: |
-          const taskList = process.env.TASK_LIST || "";
+  - name: Validate Tasks
+    uses: actions/github-script@v7
+    env:
+      TASK_LIST: ${{ inputs.TASK_LIST }}
+    with:
+      script: |
+        const taskList = process.env.TASK_LIST || "";
 
-          if (!taskList || taskList.trim() === "") {
-            core.setFailed(
-              "❌ Error: TASK_LIST should not be empty.\n" +
-              "❌ Error: Validate if TASK_LIST was exported correctly.\n" +
-              "❌ Error: TASK_LIST could contain a Github Secret, and was not outputted by Github."
-            );
-          }
+        if (!taskList || taskList.trim() === "") {
+          core.setFailed(
+            "❌ Error: TASK_LIST should not be empty.\n" +
+            "❌ Error: Validate if TASK_LIST was exported correctly.\n" +
+            "❌ Error: TASK_LIST could contain a Github Secret, and was not outputted by Github."
+          );
+        }
 
-    - name: Configure aws credentials
-      env:
-        role_arn: ${{ inputs.AWS_ROLE_ARN }}
-      id: aws-cred
-      if: ${{ env.role_arn != 0 }}
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ inputs.AWS_ROLE_ARN }}
-        aws-region: ${{ inputs.AWS_REGION }}
-        output-credentials: true
+  - name: Checkout
+    if: inputs.CHECKOUT_BRANCH != 'false'
+    uses: actions/checkout@v4
 
-    - name: Checkout
-      if: inputs.CHECKOUT_BRANCH != 'false'
-      uses: actions/checkout@v4
+  - name: "Setup jq"
+    shell: bash
+    run: |
+      if ! [ -x "$(command -v jq)" ]; then
+        sudo apt install jq -y
+      fi
 
-    - name: "Setup jq"
-      shell: bash
-      run: |
-        if ! [ -x "$(command -v jq)" ]; then
-          sudo apt install jq -y
+  - name: Define Domains
+    id: stackspot-url
+    run: |
+      if [ "${{ inputs.BETA_CLI_ENVIRONMENT }}" == "default" ]; then
+        STACKSPOT_IAM_URL="https://auth.stackspot.com"
+        STACKSPOT_RUNTIME_MANAGER_URL="https://runtime-manager.v1.stackspot.com"
+
+      elif [ "${{ inputs.BETA_CLI_ENVIRONMENT }}" == "stg" ]; then
+        STACKSPOT_IAM_URL="https://iam-auth-ssr.stg.stackspot.com"
+        STACKSPOT_RUNTIME_MANAGER_URL="https://runtime-manager.stg.stackspot.com"
+
+      elif [ "${{ inputs.BETA_CLI_ENVIRONMENT }}" == "dev" ]; then
+        STACKSPOT_IAM_URL="https://iam-auth-ssr.dev.stackspot.com"
+        STACKSPOT_RUNTIME_MANAGER_URL="https://runtime-manager.dev.stackspot.com"
+
+      else
+        echo "Invalid environment: ${{ inputs.BETA_CLI_ENVIRONMENT }}"
+        exit 1
+      fi
+
+      echo "iam=$STACKSPOT_IAM_URL" >> "$GITHUB_OUTPUT"
+      echo "runtime_manager=$STACKSPOT_RUNTIME_MANAGER_URL" >> "$GITHUB_OUTPUT"
+    shell: bash
+
+  - name: "Run all tasks"
+    shell: bash
+    run: |
+      task_list=$(echo "${{ inputs.TASK_LIST }}" | tr "'" '"')
+      echo "$task_list"
+
+      for row in $(echo "$task_list" | jq -e -r '.[] | @base64'); do
+        task_id=$(echo "${row}" | base64 --decode | jq -e -r '.runTaskId')
+        task_type=$(echo "${row}" | base64 --decode | jq -e -r '.taskType')
+        plugin_alias=$(echo "${row}" | base64 --decode | jq -e -r '.pluginAppliedAlias')
+
+        if [ "$task_type" == "IAC_SELF_HOSTED" ]; then
+          FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
+          -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
+          -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
+          -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
+          -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
+          -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
+          -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
+          -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
+          -e CHECKOUT_BRANCH="${{ inputs.CHECKOUT_BRANCH }}" \
+          -e AWS_REGION=${{ inputs.AWS_REGION }}")
+
+          if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+            FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }}")
+          fi
+
+          if [ ! -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+            FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }}")
+          fi
+
+          docker run --rm \
+          $FLAGS \
+          --entrypoint=/app/stackspot-runtime-job-iac \
+          ${{ inputs.CONTAINER_URL_IAC }} start --run-task-id="${task_id}" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
         fi
 
-    - name: Define Domains
-      id: stackspot-url
-      run: |
-        if [ "${{ inputs.BETA_CLI_ENVIRONMENT }}" == "default" ]; then
-          STACKSPOT_IAM_URL="https://auth.stackspot.com"
-          STACKSPOT_RUNTIME_MANAGER_URL="https://runtime-manager.v1.stackspot.com"
-        
-        elif [ "${{ inputs.BETA_CLI_ENVIRONMENT }}" == "stg" ]; then
-          STACKSPOT_IAM_URL="https://iam-auth-ssr.stg.stackspot.com"
-          STACKSPOT_RUNTIME_MANAGER_URL="https://runtime-manager.stg.stackspot.com"
-        
-        elif [ "${{ inputs.BETA_CLI_ENVIRONMENT }}" == "dev" ]; then
-          STACKSPOT_IAM_URL="https://iam-auth-ssr.dev.stackspot.com"
-          STACKSPOT_RUNTIME_MANAGER_URL="https://runtime-manager.dev.stackspot.com"
-        
-        else
-          echo "Invalid environment: ${{ inputs.BETA_CLI_ENVIRONMENT }}"
-          exit 1
+        if [ "$task_type" == "DEPLOY_SELF_HOSTED" ]; then
+          FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
+          -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
+          -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
+          -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
+          -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
+          -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
+          -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
+          -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
+          -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
+          -e FEATURES_BASEPATH_EBS=/opt/runtime \
+          -e FEATURES_TEMPLATES_FILEPATH=/app/ \
+          -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
+          -e AWS_REGION=${{ inputs.AWS_REGION }} \
+          -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
+
+          if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+            FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }}")
+          fi
+
+          if [ ! -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+            FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }}")
+          fi
+
+          if [ ! -z "${{ inputs.TF_LOG_PROVIDER }}" ]; then
+            FLAGS=$(echo "$FLAGS -e FEATURES_TERRAFORM_LOGPROVIDER=${{ inputs.TF_LOG_PROVIDER }}")
+          fi
+
+          docker run --rm \
+          $FLAGS \
+          -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' \
+          --entrypoint=/app/stackspot-runtime-job-deploy \
+          ${{ inputs.CONTAINER_URL_DEPLOY }} start --run-task-id="${task_id}" --output-file="${plugin_alias}${{ inputs.OUTPUT_FILE }}"
         fi
 
-        echo "iam=$STACKSPOT_IAM_URL" >> "$GITHUB_OUTPUT"
-        echo "runtime_manager=$STACKSPOT_RUNTIME_MANAGER_URL" >> "$GITHUB_OUTPUT"
-      shell: bash
+        if [ "$task_type" == "DESTROY_SELF_HOSTED" ]; then
+          FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
+          -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
+          -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
+          -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
+          -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
+          -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
+          -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
+          -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
+          -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
+          -e FEATURES_BASEPATH_EBS=/opt/runtime \
+          -e FEATURES_TEMPLATES_FILEPATH=/app/ \
+          -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
+          -e AWS_REGION=${{ inputs.AWS_REGION }} \
+          -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
 
-    - name: "Run all tasks"
-      shell: bash
-      run: |
-        task_list=$(echo "${{ inputs.TASK_LIST }}" | tr "'" '"')
-        echo "$task_list"
-
-        for row in $(echo "$task_list" | jq -e -r '.[] | @base64'); do
-          task_id=$(echo "${row}" | base64 --decode | jq -e -r '.runTaskId')
-          task_type=$(echo "${row}" | base64 --decode | jq -e -r '.taskType')
-          plugin_alias=$(echo "${row}" | base64 --decode | jq -e -r '.pluginAppliedAlias')
-
-          if [ "$task_type" == "IAC_SELF_HOSTED" ]; then
-            FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
-            -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
-            -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
-            -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
-            -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
-            -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
-            -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
-            -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
-            -e CHECKOUT_BRANCH="${{ inputs.CHECKOUT_BRANCH }}" \
-            -e AWS_REGION=${{ inputs.AWS_REGION }}")
-
-            if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
-              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }}")
-            fi
-
-            if [ ! -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
-              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }}")
-            fi
-
-            docker run --rm \
-            $FLAGS \
-            --entrypoint=/app/stackspot-runtime-job-iac \
-            ${{ inputs.CONTAINER_URL_IAC }} start --run-task-id="${task_id}" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
+          if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+            FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }}")
           fi
 
-          if [ "$task_type" == "DEPLOY_SELF_HOSTED" ]; then
-            FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
-            -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
-            -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
-            -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
-            -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
-            -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
-            -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
-            -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
-            -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
-            -e FEATURES_BASEPATH_EBS=/opt/runtime \
-            -e FEATURES_TEMPLATES_FILEPATH=/app/ \
-            -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
-            -e AWS_REGION=${{ inputs.AWS_REGION }} \
-            -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
-
-            if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
-              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }}")
-            fi
-
-            if [ ! -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
-              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }}")
-            fi
-
-            if [ ! -z "${{ inputs.TF_LOG_PROVIDER }}" ]; then
-              FLAGS=$(echo "$FLAGS -e FEATURES_TERRAFORM_LOGPROVIDER=${{ inputs.TF_LOG_PROVIDER }}")
-            fi
-
-            docker run --rm \
-            $FLAGS \
-            -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' \
-            --entrypoint=/app/stackspot-runtime-job-deploy \
-            ${{ inputs.CONTAINER_URL_DEPLOY }} start --run-task-id="${task_id}" --output-file="${plugin_alias}${{ inputs.OUTPUT_FILE }}"
+          if [ ! -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+            FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }}")
           fi
 
-          if [ "$task_type" == "DESTROY_SELF_HOSTED" ]; then
-            FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
-            -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
-            -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
-            -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
-            -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
-            -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
-            -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
-            -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
-            -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
-            -e FEATURES_BASEPATH_EBS=/opt/runtime \
-            -e FEATURES_TEMPLATES_FILEPATH=/app/ \
-            -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
-            -e AWS_REGION=${{ inputs.AWS_REGION }} \
-            -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
-
-            if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
-              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }}")
-            fi
-
-            if [ ! -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
-              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }}")
-            fi
-
-            if [ ! -z "${{ inputs.TF_LOG_PROVIDER }}" ]; then
-              FLAGS=$(echo "$FLAGS -e FEATURES_TERRAFORM_LOGPROVIDER=${{ inputs.TF_LOG_PROVIDER }}")
-            fi
-
-            docker run --rm \
-            $FLAGS \
-            -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' \
-            --entrypoint=/app/stackspot-runtime-job-destroy \
-            ${{ inputs.CONTAINER_URL_DESTROY }} start --run-task-id="${task_id}"
+          if [ ! -z "${{ inputs.TF_LOG_PROVIDER }}" ]; then
+            FLAGS=$(echo "$FLAGS -e FEATURES_TERRAFORM_LOGPROVIDER=${{ inputs.TF_LOG_PROVIDER }}")
           fi
 
-          if [ "$task_type" == "UNIFIED_IAC" ] || [ "$task_type" == "PLAN" ] || [ "$task_type" == "UNIFIED_DEPLOY" ] || [ "$task_type" == "UNIFIED_DESTROY" ]; then
-            FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
-            -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
-            -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
-            -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
-            -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
-            -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
-            -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
-            -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
-            -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
-            -e FEATURES_BASEPATH_EBS=/opt/runtime \
-            -e FEATURES_TEMPLATES_FILEPATH=/app/ \
-            -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
-            -e AWS_REGION=${{ inputs.AWS_REGION }} \
-            -e CHECKOUT_BRANCH="${{ inputs.CHECKOUT_BRANCH }}" \
-            -e TF_CLI_ARGS_apply="-parallelism=${{ inputs.TF_PARALLELISM }}" \
-            -e TF_CLI_ARGS_plan="-parallelism=${{ inputs.TF_PARALLELISM }}" \
-            -e TF_CLI_ARGS_destroy="-parallelism=${{ inputs.TF_PARALLELISM }}" \
-            -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
+          docker run --rm \
+          $FLAGS \
+          -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' \
+          --entrypoint=/app/stackspot-runtime-job-destroy \
+          ${{ inputs.CONTAINER_URL_DESTROY }} start --run-task-id="${task_id}"
+        fi
 
-            if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
-              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }}")
-            fi
+        if [ "$task_type" == "UNIFIED_IAC" ] || [ "$task_type" == "PLAN" ] || [ "$task_type" == "UNIFIED_DEPLOY" ] || [ "$task_type" == "UNIFIED_DESTROY" ]; then
+          FLAGS=$(echo "-v ${{ inputs.PATH_TO_MOUNT }}:/app-volume  \
+          -e FEATURES_LEVEL_LOG=${{ inputs.FEATURES_LEVEL_LOG }} \
+          -e AUTHENTICATE_CLIENT_ID=${{ inputs.CLIENT_ID }} \
+          -e AUTHENTICATE_CLIENT_SECRET=${{ inputs.CLIENT_KEY }} \
+          -e AUTHENTICATE_CLIENT_REALMS=${{ inputs.CLIENT_REALM }} \
+          -e REPOSITORY_NAME=${{ inputs.REPOSITORY_NAME }} \
+          -e AUTHENTICATE_URL="${{ steps.stackspot-url.outputs.iam }}" \
+          -e FEATURES_API_MANAGER="${{ steps.stackspot-url.outputs.runtime_manager }}" \
+          -e FEATURES_BASEPATH_TMP=/tmp/runtime/deploys \
+          -e FEATURES_BASEPATH_EBS=/opt/runtime \
+          -e FEATURES_TEMPLATES_FILEPATH=/app/ \
+          -e FEATURES_BASEPATH_TERRAFORM=/root/.asdf/shims/terraform \
+          -e AWS_REGION=${{ inputs.AWS_REGION }} \
+          -e CHECKOUT_BRANCH="${{ inputs.CHECKOUT_BRANCH }}" \
+          -e TF_CLI_ARGS_apply="-parallelism=${{ inputs.TF_PARALLELISM }}" \
+          -e TF_CLI_ARGS_plan="-parallelism=${{ inputs.TF_PARALLELISM }}" \
+          -e TF_CLI_ARGS_destroy="-parallelism=${{ inputs.TF_PARALLELISM }}" \
+          -e FEATURES_RELEASE_LOCALEXEC=${{ inputs.LOCALEXEC_ENABLED }}")
 
-            if [ ! -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
-              FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }}")
-              FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }}")
-            fi
-
-            if [ ! -z "${{ inputs.TF_LOG_PROVIDER }}" ]; then
-              FLAGS=$(echo "$FLAGS -e FEATURES_TERRAFORM_LOGPROVIDER=${{ inputs.TF_LOG_PROVIDER }}")
-            fi
-
-            docker run --rm \
-            $FLAGS \
-            -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' \
-            --entrypoint=/app/stackspot-runtime-job \
-            ${{ inputs.CONTAINER_URL_UNIFIED }} start --run-id="${{ inputs.RUN_ID }}" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
+          if [ -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+            FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ inputs.AWS_SESSION_TOKEN }}")
           fi
-        done
+
+          if [ ! -z "${{ inputs.AWS_ROLE_ARN }}" ]; then
+            FLAGS=$(echo "$FLAGS -e AWS_ACCESS_KEY_ID=${{ steps.aws-cred.outputs.aws-access-key-id }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SECRET_ACCESS_KEY=${{ steps.aws-cred.outputs.aws-secret-access-key }}")
+            FLAGS=$(echo "$FLAGS -e AWS_SESSION_TOKEN=${{ steps.aws-cred.outputs.aws-session-token }}")
+          fi
+
+          if [ ! -z "${{ inputs.TF_LOG_PROVIDER }}" ]; then
+            FLAGS=$(echo "$FLAGS -e FEATURES_TERRAFORM_LOGPROVIDER=${{ inputs.TF_LOG_PROVIDER }}")
+          fi
+
+          docker run --rm \
+          $FLAGS \
+          -e FEATURES_TERRAFORM_MODULES='${{ inputs.FEATURES_TERRAFORM_MODULES }}' \
+          --entrypoint=/app/stackspot-runtime-job \
+          ${{ inputs.CONTAINER_URL_UNIFIED }} start --run-id="${{ inputs.RUN_ID }}" --base-path-output="${{ inputs.BASE_PATH_OUTPUT }}"
+        fi
+      done
