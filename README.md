@@ -125,6 +125,7 @@ jobs:
 | `AWS_SECRET_ACCESS_KEY`      | AWS SECRET ACCESS KEY from console                                           | string  | false    |                                        |
 | `AWS_SESSION_TOKEN`          | AWS SESSION TOKEN from console                                               | string  | false    |                                        |
 | `AWS_ROLE_ARN`               | AWS ROLE ARN                                                                 | string  | false    |                                        |
+| `EXCLUDE_FILES_PATH`         | Enter Path that should be deleted with 'rm -rf {{ inputs.PATH_TO_MOUNT }}/{{ inputs.EXCLUDE_FILES_PATH }}' | string  | false    |                                        |
 
 * * *
 
